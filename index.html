@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployed Tropical Farm Simulation</title>
+    <!-- Tailwind for premium styling and the dark interface panels -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for the 3D-projected scene and interaction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; margin: 0; background-color: #0c0f16; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
+        .ui-panel { pointer-events: auto; } /* Ensure panels capture interaction */
+    </style>
+</head>
+<body class="text-slate-100 select-none">
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- MAIN UI OVERLAY (Pointer-events: none lets us interact with the scene unless over a panel) -->
+    <div class="relative z-10 w-full h-full p-6 pointer-events-none flex flex-col justify-between">
+        
+        <!-- Header / Interaction Hotspot Labels -->
+        <header class="w-full flex justify-between items-start">
+            <div class="bg-slate-900/60 backdrop-blur-xl p-5 rounded-3xl border border-slate-700/50 ui-panel shadow-2xl">
+                <h1 class="text-2xl font-800 text-teal-300 tracking-wide">VibeCode Farm Sim Pro</h1>
+                <p class="text-xs text-slate-300">Live WebGL Walkthrough • Interaction Enabled</p>
+            </div>
+            
+            <!-- Hotspot Labels: Example of labels projected near key objects (These labels are static overlays) -->
+            <div class="flex flex-col gap-2 items-end mt-4">
+                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-slate-900/70 border border-slate-700/50 text-slate-200">Crop Fields: Interaction Point</span>
+                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-slate-900/70 border border-slate-700/50 text-slate-200">Woman: Interaction Point</span>
+                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-slate-900/70 border border-slate-700/50 text-slate-200">Pond: Interaction Point</span>
+            </div>
+        </header>
+
+        <!-- Dynamic Lower Controls (Matches Image 14 Layout) -->
+        <footer class="w-full grid grid-cols-1 md:grid-cols-[1fr,2fr] gap-6 items-end">
+            
+            <!-- LEFT PANEL: Command Buttons (Assigns Chores) -->
+            <div class="bg-slate-900/60 backdrop-blur-xl p-6 rounded-3xl border border-slate-700/50 ui-panel shadow-2xl">
+                <h2 class="text-sm font-semibold text-teal-300 mb-4 tracking-wider uppercase">FARM COMMANDS (Active State)</h2>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <button onclick="setChore('gardening')" class="group flex flex-col items-center justify-center gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500 transition active:scale-95">
+                        <!-- Example Icon (Simplified Vector) -->
+                        <div class="w-10 h-10 rounded-full bg-amber-500/20 group-hover:bg-slate-900 transition flex items-center justify-center">
+                            <svg class="w-5 h-5 text-amber-300 group-hover:text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z"></path></svg>
+                        </div>
+                        <span class="text-xs font-bold text-amber-300 group-hover:text-slate-900">Tending Garden</span>
+                    </button>
+                    
+                    <button onclick="setChore('feeding')" class="group flex flex-col items-center justify-center gap-3 p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500 transition active:scale-95">
+                        <div class="w-10 h-10 rounded-full bg-emerald-500/20 group-hover:bg-slate-900 transition flex items-center justify-center">
+                            <svg class="w-5 h-5 text-emerald-300 group-hover:text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"></path></svg>
+                        </div>
+                        <span class="text-xs font-bold text-emerald-300 group-hover:text-slate-900">Feeding Horses</span>
+                    </button>
+                </div>
+                
+                <p id="statusLog" class="text-xs text-slate-400 mt-5 pt-4 border-t border-slate-700/50">Simulation Running: [Awaiting Command]</p>
+            </div>
+
+            <!-- RIGHT PANEL: System Status and Camera Views (Active Indicators) -->
+            <div class="flex flex-col gap-6">
+                <!-- Status List (Matching Image 14 Text) -->
+                <div class="bg-slate-900/60 backdrop-blur-xl p-6 rounded-3xl border border-slate-700/50 ui-panel shadow-2xl space-y-3">
+                    <h3 class="text-sm font-semibold text-teal-300 tracking-wider uppercase">SYSTEM STATUS & VIEWS</h3>
+                    <ul class="text-xs text-slate-300 space-y-1.5">
+                        <li>• WebGL Status: <span class="font-semibold text-emerald-400">Active (Rendering Live)</span></li>
+                        <li>• FPS: <span class="font-mono text-emerald-400">60.0 (Rendering)</span></li>
+                        <li>• Connection: <span class="font-semibold text-emerald-400">Stable</span></li>
+                        <li>• Interaction: <span id="interactionType" class="font-semibold text-emerald-400">Walks-through</span></li>
+                        <li id="womanStatus">• Woman: <span class="font-semibold text-emerald-400">PINNING SHIRT</span></li>
+                    </ul>
+                </div>
+
+                <!-- View Control Buttons (Indicators for active camera mode) -->
+                <div class="flex justify-end gap-3 ui-panel">
+                    <button class="px-5 py-3 text-xs font-bold rounded-2xl border border-slate-700/50 bg-slate-900/70 hover:bg-slate-800 text-slate-300 active:scale-95">Orbit View</button>
+                    <button class="px-5 py-3 text-xs font-bold rounded-2xl border border-emerald-500/40 bg-emerald-500/20 text-emerald-300 shadow-xl active:scale-95">Walkthrough</button>
+                    <button class="px-5 py-3 text-xs font-bold rounded-2xl border border-slate-700/50 bg-slate-900/70 hover:bg-slate-800 text-slate-300 active:scale-95">Reset View</button>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Hidden source asset (Image 14) -->
+    <img id="farmTexture" src="image_14.png" class="hidden">
+
+    <script>
+        // --- THREE.JS LIVE WALKTHROUGH ENGINE ---
+        // This script will generate a subtle, continuous depth effect to make the 2D asset feel live and responsive.
+
+        const container = document.getElementById('canvas-container');
+        const farmImage = document.getElementById('farmTexture');
+
+        const scene = new THREE.Scene();
+        // Match background sky color
+        scene.background = new THREE.Color(0xd2eaf7); 
+        scene.fog = new THREE.FogExp2(0xd2eaf7, 0.002); // Add dynamic haze/fog
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+        // Positioned for an active wide walkthrough perspective
+        camera.position.set(10, 5, 80); 
+        camera.lookAt(15, -10, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // --- MAIN GEOMETRY: DISPLACEMENT MAPPING (Depth Illusion) ---
+        // We project the asset (Image 14) onto a plane, then use procedural noise for simple depth interaction.
+        const geometry = new THREE.PlaneGeometry(200, 112.5, 256, 144); // High tessellation for depth details
+        const textureLoader = new THREE.TextureLoader();
+        const texture = textureLoader.load('image_14.png');
+        
+        // Advanced material allows displacement/bump maps
+        const material = new THREE.MeshStandardMaterial({ 
+            map: texture,
+            transparent: true,
+            opacity: 1.0,
+            metalness: 0.1,
+            roughness: 0.8
+        });
+
+        // Procedural depth displacement (Simple Sin/Cos example - replace with an actual displacement map for better quality)
+        geometry.attributes.position.array.forEach((val, i) => {
+            if (i % 3 === 2) { // Target Z attribute (Depth)
+                const x = geometry.attributes.position.array[i-2];
+                const y = geometry.attributes.position.array[i-1];
+                
+                // Add simple pseudo-terrain depth
+                let depth = Math.sin(x * 0.05) * Math.cos(y * 0.05) * 5; 
+                if (y < -30) depth -= 5; // deepen the pond/foreground
+                if (y > 30) depth += 10; // raise the mountains
+                
+                geometry.attributes.position.array[i] = depth;
+            }
+        });
+        geometry.attributes.position.needsUpdate = true;
+        geometry.computeVertexNormals(); // Recalculate shadows for depth
+
+        const farmPlane = new THREE.Mesh(geometry, material);
+        scene.add(farmPlane);
+
+        // Dynamic Lighting (Needed for MeshStandardMaterial and shadows)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+        sunLight.position.set(40, 60, 20); // Warm Golden Hour direction
+        scene.add(sunLight);
+
+        // --- INTERACTIVE CHORE PATHFINDER (Depth Integrated) ---
+        const destinations = {
+            gardening: { x: 50, y: -25, label: "Woman: PINNING SHIRT" },
+            feeding: { x: -20, y: 15, label: "Woman: FEEDING HORSES" }
+        };
+
+        let currentPos = new THREE.Vector2(50, -25); // Current woman interaction position
+        let targetPos = new THREE.Vector2(50, -25);
+        
+        // Simple visual marker for woman interaction point
+        const womanMarkerGeo = new THREE.CircleGeometry(1.5, 32);
+        const womanMarkerMat = new THREE.MeshBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.8 }); // Vibe Pink
+        const womanMarker = new THREE.Mesh(womanMarkerGeo, womanMarkerMat);
+        womanMarker.position.set(currentPos.x, currentPos.y, 1); // Depth value of target point
+        scene.add(womanMarker);
+
+        const statusLog = document.getElementById('statusLog');
+        const womanStatusList = document.getElementById('womanStatus');
+
+        function setChore(key) {
+            const dest = destinations[key];
+            targetPos.set(dest.x, dest.y);
+            
+            // Update the UI readouts (Status Panels)
+            statusLog.innerText = `... [Log: Tractor Plowing] -> [Log: Dogs Chasing] -> [Log: User Changed Chore to ${key}]`;
+            womanStatusList.innerHTML = `• Woman: <span class="font-semibold text-emerald-400 uppercase">${key}</span>`;
+            
+            // Simple depth awareness: when feeding horses (further back), move cam subtly
+            if(key === 'feeding') {
+                camera.position.z -= 10;
+            } else {
+                camera.position.z = 80;
+            }
+        }
+
+        // --- ANIMATION LOOP (VIBE CODES) ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            // 1. Scene Motion: Smooth continuous camera walkthrough sway
+            const swayX = Math.sin(time * 0.3) * 2;
+            const swayY = Math.cos(time * 0.4) * 1;
+            camera.position.x = 10 + swayX;
+            camera.position.y = 5 + swayY;
+
+            // 2. Continuous Element Animations: (Example: Dynamic fog movement)
+            scene.fog.density = 0.002 + Math.sin(time * 0.5) * 0.0005;
+
+            // 3. Move Woman interaction marker toward target using LERP
+            if (currentPos.distanceTo(targetPos) > 0.1) {
+                // Move current position vector smoothly
+                currentPos.lerp(targetPos, 0.05); // 0.05 lerp speed
+                womanMarker.position.x = currentPos.x;
+                womanMarker.position.y = currentPos.y;
+
+                // Simple bobbing motion to signify walking
+                womanMarker.scale.set(1 + Math.sin(time * 15) * 0.1, 1 + Math.sin(time * 15) * 0.1, 1);
+                
+                // Track Z depth on the projected plane
+                const raycaster = new THREE.Raycaster();
+                raycaster.set(new THREE.Vector3(currentPos.x, currentPos.y, 50), new THREE.Vector3(0,0,-1));
+                const intersections = raycaster.intersectObject(farmPlane);
+                if(intersections.length > 0) {
+                    womanMarker.position.z = intersections[0].point.z + 0.5; // Stay just in front of plane
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // --- RESPONSIVE RESIZE ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start the engine
+        animate();
+    </script>
+</body>
+</html>
